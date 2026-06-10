@@ -1,6 +1,6 @@
 module crema/metric-provider
 
-go 1.26.0
+go 1.26.4
 
 require (
 	cloud.google.com/go/logging v1.13.2
