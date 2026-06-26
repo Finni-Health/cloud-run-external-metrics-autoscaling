@@ -204,3 +204,15 @@ java_test(
         "@maven//:org_mockito_mockito_core",
     ],
 )
+
+java_test(
+    name = "CremaLogFormatterTest",
+    srcs = ["CremaLogFormatterTest.java"],
+    test_class = "com.google.cloud.run.crema.CremaLogFormatterTest",
+    deps = [
+        "//src/main/java/com/google/cloud/run/crema:scaler_server",
+        "@maven//:com_google_code_gson_gson",
+        "@maven//:com_google_truth_truth",
+        "@maven//:junit_junit",
+    ],
+)

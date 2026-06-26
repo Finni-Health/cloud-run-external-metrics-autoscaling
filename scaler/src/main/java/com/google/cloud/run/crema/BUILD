@@ -157,7 +157,10 @@ java_library(
 
 java_binary(
     name = "scaler_server",
-    srcs = ["ScalerServer.java"],
+    srcs = [
+        "CremaLogFormatter.java",
+        "ScalerServer.java",
+    ],
     main_class = "com.google.cloud.run.crema.ScalerServer",
     runtime_deps = ["@maven//:com_google_flogger_flogger_system_backend"],
     deps = [
@@ -177,6 +180,7 @@ java_binary(
         "@grpc-java//stub",
         "@grpc-proto//:health_java_proto",
         "@grpc-proto//:health_proto",
+        "@maven//:com_google_code_gson_gson",
         "@maven//:com_google_flogger_flogger",
         "@maven//:com_google_protobuf_protobuf_java",
     ],

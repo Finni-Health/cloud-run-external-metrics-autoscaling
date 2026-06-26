@@ -17,6 +17,7 @@ package logging
 import (
 	"context"
 	"crema/metric-provider/internal/clients"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -34,26 +35,25 @@ type logSink struct {
 	stdOutLogger *log.Logger
 	stdErrLogger *log.Logger
 	cloudLogger  *logging.Logger
-	prefix       string
 	values       []interface{}
+	jsonFormat   bool
 }
 
 // NewLogger creates a new logr.Logger that writes to stdout.
 func NewLogger() logr.Logger {
-	prefix := "[METRIC-PROVIDER]"
 	stdErrLogger := log.New(os.Stderr, "", 0)
 
 	value, isSet := os.LookupEnv(enableCloudLoggingEnvVar)
 	var enableCloudLogging bool
 
 	if !isSet {
-		stdErrLogger.Printf("[INFO] %s Environment variable %s is unset; logs will be emitted to stdout and stderr", prefix, enableCloudLoggingEnvVar)
+		stdErrLogger.Printf("[INFO] Environment variable %s is unset; logs will be emitted to stdout and stderr", enableCloudLoggingEnvVar)
 		enableCloudLogging = false
 	} else {
 		var err error
 		enableCloudLogging, err = strconv.ParseBool(value)
 		if err != nil {
-			stdErrLogger.Printf("[ERROR] %s Failed to parse %s='%s' to bool; logs will be emitted to stdout and stderr", prefix, enableCloudLoggingEnvVar, value)
+			stdErrLogger.Printf("[ERROR] Failed to parse %s='%s' to bool; logs will be emitted to stdout and stderr", enableCloudLoggingEnvVar, value)
 			enableCloudLogging = false
 		}
 	}
@@ -69,10 +69,10 @@ func NewLogger() logr.Logger {
 			if err == nil {
 				cloudLogger = client.Logger("crema")
 			} else {
-				stdErrLogger.Printf("[ERROR] %s Failed to initialize Google Cloud Logging client: %v", prefix, err)
+				stdErrLogger.Printf("[ERROR] Failed to initialize Google Cloud Logging client: %v", err)
 			}
 		} else {
-			stdErrLogger.Printf("[ERROR] %s Failed to get project ID: %v", prefix, err)
+			stdErrLogger.Printf("[ERROR] Failed to get project ID: %v", err)
 		}
 	}
 
@@ -80,7 +80,7 @@ func NewLogger() logr.Logger {
 		stdOutLogger: log.New(os.Stdout, "", 0),
 		stdErrLogger: stdErrLogger,
 		cloudLogger:  cloudLogger,
-		prefix:       prefix,
+		jsonFormat:   strings.ToLower(os.Getenv("LOG_FORMAT")) == "json",
 	})
 }
 
@@ -95,30 +95,48 @@ func (ls logSink) Enabled(level int) bool {
 
 func (ls logSink) Info(level int, msg string, keysAndValues ...interface{}) {
 	kvs := append(ls.values, keysAndValues...)
-	ls.stdOutLogger.Printf("[INFO] %s %s %s", ls.prefix, msg, ls.formatKVs(kvs))
+	if ls.jsonFormat {
+		payload := make(map[string]interface{})
+		payload["severity"] = "INFO"
+		payload["component"] = "metric-provider"
+		payload["message"] = msg
+		populateKVs(payload, kvs)
+		if jsonBytes, err := json.Marshal(payload); err == nil {
+			ls.stdOutLogger.Println(string(jsonBytes))
+		}
+	} else {
+		ls.stdOutLogger.Printf("[INFO] [METRIC-PROVIDER] %s %s\n", msg, ls.formatKVs(kvs))
+	}
 }
 
 func (ls logSink) Error(err error, msg string, keysAndValues ...interface{}) {
 	kvs := append(ls.values, keysAndValues...)
-	msg = fmt.Sprintf("[ERROR] %s %s: %v%s", ls.prefix, msg, err, ls.formatKVs(kvs))
+	fullMsg := fmt.Sprintf("%s: %v", msg, err)
+	formattedMsg := fmt.Sprintf("[ERROR] [METRIC-PROVIDER] %s %s\n", fullMsg, ls.formatKVs(kvs))
 
 	if ls.cloudLogger != nil {
 		payload := make(map[string]interface{})
-		payload["message"] = msg
-
-		// Include the key-values in the payload for searchability
-		for i := 0; i < len(kvs); i += 2 {
-			if i+1 < len(kvs) {
-				payload[fmt.Sprintf("%v", kvs[i])] = kvs[i+1]
-			}
-		}
+		payload["component"] = "metric-provider"
+		payload["message"] = fullMsg
+		populateKVs(payload, kvs)
 
 		ls.cloudLogger.Log(logging.Entry{
 			Payload:  payload,
 			Severity: logging.Error,
 		})
 	} else {
-		ls.stdErrLogger.Print(msg)
+		if ls.jsonFormat {
+			payload := make(map[string]interface{})
+			payload["severity"] = "ERROR"
+			payload["component"] = "metric-provider"
+			payload["message"] = fullMsg
+			populateKVs(payload, kvs)
+			if jsonBytes, err := json.Marshal(payload); err == nil {
+				ls.stdErrLogger.Println(string(jsonBytes))
+			}
+		} else {
+			ls.stdErrLogger.Print(formattedMsg)
+		}
 	}
 }
 
@@ -129,15 +147,7 @@ func (ls logSink) WithValues(keysAndValues ...interface{}) logr.LogSink {
 }
 
 func (ls logSink) WithName(name string) logr.LogSink {
-	newLogger := ls
-	if len(ls.prefix) > 0 {
-		// Remove brackets
-		prefix := ls.prefix[1 : len(ls.prefix)-1]
-		newLogger.prefix = fmt.Sprintf("[%s/%s]", prefix, name)
-	} else {
-		newLogger.prefix = fmt.Sprintf("[%s]", name)
-	}
-	return newLogger
+	return ls
 }
 
 func (ls logSink) formatKVs(keysAndValues []interface{}) string {
@@ -147,13 +157,26 @@ func (ls logSink) formatKVs(keysAndValues []interface{}) string {
 	var sb strings.Builder
 	sb.WriteString(" ")
 	for i := 0; i < len(keysAndValues); i += 2 {
-		sb.WriteString(fmt.Sprintf("%s=", keysAndValues[i]))
 		if i+1 < len(keysAndValues) {
-			sb.WriteString(fmt.Sprintf("%+v", keysAndValues[i+1]))
+			fmt.Fprintf(&sb, "%v=%+v", keysAndValues[i], keysAndValues[i+1])
+		} else {
+			fmt.Fprintf(&sb, "%v=", keysAndValues[i])
 		}
 		if i+2 < len(keysAndValues) {
 			sb.WriteString(" ")
 		}
 	}
 	return sb.String()
+}
+
+func populateKVs(payload map[string]interface{}, kvs []interface{}) {
+	for i := 0; i < len(kvs); i += 2 {
+		if i+1 < len(kvs) {
+			keyStr, ok := kvs[i].(string)
+			if !ok {
+				keyStr = fmt.Sprintf("%v", kvs[i])
+			}
+			payload[keyStr] = kvs[i+1]
+		}
+	}
 }

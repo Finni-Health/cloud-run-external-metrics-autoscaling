@@ -196,6 +196,7 @@ The following environment variables are checked by the container:
 - `CREMA_CONFIG`: Required. The fully qualified name (FQN) of the parameter version which contains your CREMA config.
 - `OUTPUT_SCALER_METRICS`: Optional. If true, CREMA will emit metrics to Cloud Monitoring.
 - `ENABLE_CLOUD_LOGGING`: Optional. If true, CREMA will log errors to Cloud Logging for improved log searchability.
+- `LOG_FORMAT`: Optional. If set to `json`, CREMA will output JSON-structured payloads natively instead of legacy plain-text logs.
 
 Note: The `OUTPUT_SCALER_METRICS` and `ENABLE_CLOUD_LOGGING` flags are disabled by default as these may incur additional costs. See [Cloud Observability Pricing](https://cloud.google.com/products/observability/pricing) for details.
 
@@ -226,8 +227,9 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
 Use the resource below to verify that your CREMA service is running correctly.
 
 ### Cloud Logging Logs
-CREMA writes logs to Cloud Logging during each scaling cycle. You should see the following entries in your service's logs in Cloud Logging each time metrics are refreshed:
+CREMA writes logs to Cloud Logging during each scaling cycle. By default, these are emitted as legacy plain-text logs. If you deployed CREMA with the `LOG_FORMAT=json` environment variable, CREMA will emit fully structured JSON logs with a `jsonPayload`.
 
+**Plain-text mode:**
 Each log message is labeled with the component that emitted it.
 ```
 [INFO] [METRIC-PROVIDER] Starting metric collection cycle
@@ -237,8 +239,24 @@ Each log message is labeled with the component that emitted it.
 [INFO] [SCALER] Current instances ...
 [INFO] [SCALER] Recommended instances ...
 ```
+TIP: Use the following Cloud Logging query for filtering plain-text logs: `"[SCALER]" OR "[METRIC-PROVIDER]"`
 
-TIP: Use the following Cloud Logging query for filtering the CREMA service's logs: `"[SCALER]" OR "[METRIC-PROVIDER]"`
+**JSON Structured mode (`LOG_FORMAT=json`):**
+Logs are natively parsed by Google Cloud Logging, placing custom fields into `jsonPayload`. This allows you to easily filter and alert on specific metadata:
+```json
+{
+  "jsonPayload": {
+    "message": "Recommendation was clamped to range",
+    "resource": "projects/my-project/locations/us-central1/workerpools/my-pool",
+    "minReplicaCount": 1,
+    "maxReplicaCount": 100,
+    "component": "scaler"
+  }
+}
+```
+TIP: Use the following Cloud Logging queries for filtering structured logs:
+- View all CREMA logs: `jsonPayload.component="scaler" OR jsonPayload.message=~"\[METRIC-PROVIDER\]"`
+- View scaling events for a specific resource: `jsonPayload.resource="projects/my-project/locations/us-central1/workerpools/my-pool"`
 
 ## Optional: Build the container image from source
 

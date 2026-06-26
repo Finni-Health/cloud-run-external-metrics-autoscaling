@@ -149,3 +149,60 @@ func TestInitilization(t *testing.T) {
 		}
 	}
 }
+
+func TestJSONFormatInitialization(t *testing.T) {
+	// Set LOG_FORMAT to json
+	os.Setenv("LOG_FORMAT", "json")
+	defer os.Unsetenv("LOG_FORMAT")
+
+	oldStdout := os.Stdout
+	oldStderr := os.Stderr
+	rOut, wOut, _ := os.Pipe()
+	rErr, wErr, _ := os.Pipe()
+	os.Stdout = wOut
+	os.Stderr = wErr
+
+	logger := NewLogger()
+	logger.Info("test info", "key", "value")
+	logger.Error(errors.New("test error"), "test error message", "errKey", "errVal")
+
+	wOut.Close()
+	wErr.Close()
+	os.Stdout = oldStdout
+	os.Stderr = oldStderr
+
+	var bufOut bytes.Buffer
+	io.Copy(&bufOut, rOut)
+	rOut.Close()
+
+	var bufErr bytes.Buffer
+	io.Copy(&bufErr, rErr)
+	rErr.Close()
+
+	// Verify JSON structure in stdout
+	outStr := bufOut.String()
+	if !strings.Contains(outStr, `"severity":"INFO"`) {
+		t.Errorf("Expected JSON info payload to contain severity INFO, got: %q", outStr)
+	}
+	if !strings.Contains(outStr, `"message":"test info"`) {
+		t.Errorf("Expected JSON info payload to contain correct message, got: %q", outStr)
+	}
+	if !strings.Contains(outStr, `"key":"value"`) {
+		t.Errorf("Expected JSON info payload to contain custom keys, got: %q", outStr)
+	}
+
+	// Verify JSON structure in stderr
+	errStr := bufErr.String()
+
+	// Error logging checks for initialization status inside original Error method,
+	// which may print to stderr or cloudLogger depending on env, but we are testing stderr here.
+	if !strings.Contains(errStr, `"severity":"ERROR"`) {
+		t.Errorf("Expected JSON error payload to contain severity ERROR, got: %q", errStr)
+	}
+	if !strings.Contains(errStr, `"message":"test error message: test error"`) {
+		t.Errorf("Expected JSON error payload to contain correct error message, got: %q", errStr)
+	}
+	if !strings.Contains(errStr, `"errKey":"errVal"`) {
+		t.Errorf("Expected JSON error payload to contain custom err keys, got: %q", errStr)
+	}
+}

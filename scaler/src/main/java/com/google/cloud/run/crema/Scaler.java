@@ -24,6 +24,7 @@ import com.google.cloud.run.crema.clients.CloudRunClientWrapper;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.flogger.FluentLogger;
+import com.google.common.flogger.MetadataKey;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.HashMap;
@@ -38,6 +39,12 @@ import java.util.concurrent.ExecutionException;
  */
 public class Scaler {
   private static final FluentLogger logger = FluentLogger.forEnclosingClass();
+
+  private static final MetadataKey<String> RESOURCE = MetadataKey.single("resource", String.class);
+  private static final MetadataKey<Integer> CURRENT_INSTANCE_COUNT = MetadataKey.single("currentInstanceCount", Integer.class);
+  private static final MetadataKey<Integer> RECOMMENDED_INSTANCE_COUNT = MetadataKey.single("recommendedInstanceCount", Integer.class);
+  private static final MetadataKey<Integer> MIN_REPLICA_COUNT = MetadataKey.single("minReplicaCount", Integer.class);
+  private static final MetadataKey<Integer> MAX_REPLICA_COUNT = MetadataKey.single("maxReplicaCount", Integer.class);
 
   private static final String RECOMMENDED_INSTANCE_COUNT_METRIC_NAME = "recommended_instance_count";
   private static final String REQUESTED_INSTANCE_COUNT_METRIC_NAME = "requested_instance_count";
@@ -88,13 +95,15 @@ public class Scaler {
 
     int currentInstanceCount =
         InstanceCountProvider.getInstanceCount(cloudRunClientWrapper, workloadInfo);
-    logger.atInfo().log("Current instances for %s: %d", workloadName, currentInstanceCount);
+    logger.atInfo().with(RESOURCE, workloadName).with(CURRENT_INSTANCE_COUNT, currentInstanceCount)
+    .log("Current instances for %s: %d", workloadName, currentInstanceCount);
 
     int unboundedRecommendation = 0;
     boolean hasValidTrigger = false;
 
     if (scaledObjectMetrics.getMetricsCount() == 0) {
-      logger.atInfo().log("No metrics configured for %s, scaling down to 0", workloadName);
+      logger.atInfo().with(RESOURCE, workloadName)
+      .log("No metrics configured for %s, scaling down to 0", workloadName);
       updateInstanceCount(0, workloadInfo);
       return ScalingStatus.SUCCEEDED;
     }
@@ -150,13 +159,15 @@ public class Scaler {
             now,
             workloadName);
 
-    logger.atInfo().log("Recommended instances for %s: %d", workloadName, newInstanceCount);
+    logger.atInfo().with(RESOURCE, workloadName).with(RECOMMENDED_INSTANCE_COUNT, newInstanceCount)
+    .log("Recommended instances for %s: %d", workloadName, newInstanceCount);
     if (newInstanceCount != currentInstanceCount) {
       updateInstanceCount(newInstanceCount, workloadInfo);
       scalingStabilizer.markScaleEvent(
           scalerConfig.getBehavior(), now, currentInstanceCount, newInstanceCount);
     } else {
-      logger.atInfo().log("Recommended instances for %s is unchanged.", workloadName);
+      logger.atInfo().with(RESOURCE, workloadName)
+      .log("Recommended instances for %s is unchanged.", workloadName);
     }
 
     if (staticConfig.outputScalerMetrics()) {
@@ -190,10 +201,13 @@ public class Scaler {
             scalerConfig.getMaxInstances());
 
     if (newInstanceCount != stabilizedInstanceCount) {
-      logger.atInfo().log(
-          "Recommendation for %s was clamped to range [MinReplicaCount=%d,"
-              + " MaxReplicaCount=%d]",
-          workloadName, scalerConfig.getMinInstances(), scalerConfig.getMaxInstances());
+      logger.atInfo()
+          .with(RESOURCE, workloadName)
+          .with(MIN_REPLICA_COUNT, scalerConfig.getMinInstances())
+          .with(MAX_REPLICA_COUNT, scalerConfig.getMaxInstances())
+          .log(
+          "Recommendation for %s was clamped to range",
+          workloadName);
     }
 
     return newInstanceCount;
