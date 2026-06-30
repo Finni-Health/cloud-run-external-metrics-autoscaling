@@ -176,7 +176,7 @@ CREMA_SERVICE_ACCOUNT_NAME=crema-service-account
 PARAMETER_VERSION=1
 
 CREMA_CONFIG_PARAM_VERSION=projects/$PROJECT_ID/locations/$PARAMETER_REGION/parameters/$PARAMETER_ID/versions/$PARAMETER_VERSION
-IMAGE=us-central1-docker.pkg.dev/cloud-run-oss-images/crema-v1/autoscaler:1.1
+IMAGE=us-central1-docker.pkg.dev/cloud-run-oss-images/crema-v1/autoscaler:1.2
 
 gcloud run deploy $SERVICE_NAME \
   --image=${IMAGE} \
