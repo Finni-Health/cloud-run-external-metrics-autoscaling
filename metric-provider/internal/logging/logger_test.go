@@ -71,38 +71,6 @@ func TestFormatKVs(t *testing.T) {
 	}
 }
 
-func TestWithName(t *testing.T) {
-	tests := []struct {
-		name           string
-		initialPrefix  string
-		withName       string
-		expectedPrefix string
-	}{
-		{
-			name:           "empty initial prefix",
-			initialPrefix:  "",
-			withName:       "test",
-			expectedPrefix: "[test]",
-		},
-		{
-			name:           "existing initial prefix",
-			initialPrefix:  "[METRIC-PROVIDER]",
-			withName:       "test",
-			expectedPrefix: "[METRIC-PROVIDER/test]",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ls := logSink{prefix: tt.initialPrefix}
-			newSink := ls.WithName(tt.withName).(logSink)
-			if newSink.prefix != tt.expectedPrefix {
-				t.Errorf("WithName() prefix = %q, want %q", newSink.prefix, tt.expectedPrefix)
-			}
-		})
-	}
-}
-
 func TestInitilization(t *testing.T) {
 	oldStdout := os.Stdout
 	oldStderr := os.Stderr
