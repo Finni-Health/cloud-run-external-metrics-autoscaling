@@ -119,6 +119,8 @@ public class CloudRunClientWrapper {
    *
    * @param workerpoolName The name of the worker pool to update.
    * @param instances The desired number of instances.
+   * @param projectId The project ID of the worker pool.
+   * @param region The region of the worker pool.
    * @throws ExecutionException If the update request is rejected.
    * @throws InterruptedException If an error occurs during the API call.
    */
@@ -190,6 +192,8 @@ public class CloudRunClientWrapper {
    *
    * @param serviceName The name of the service to update.
    * @param instances The desired number of instances.
+   * @param projectId The project ID of the service.
+   * @param region The region of the service.
    * @throws ExecutionException If the update request is rejected.
    * @throws InterruptedException If an error occurs during the API call.
    */
@@ -230,6 +234,10 @@ public class CloudRunClientWrapper {
    *
    * @param serviceName The name of the service to update.
    * @param instances The desired number of instances.
+   * @param projectId The project ID of the service.
+   * @param region The region of the service.
+   * @throws ExecutionException If the update request is rejected.
+   * @throws InterruptedException If an error occurs during the API call.
    */
   public void updateServiceManualInstances(
       String serviceName, int instances, String projectId, String region)
@@ -261,14 +269,17 @@ public class CloudRunClientWrapper {
         new ApiFutureCallback<T>() {
           @Override
           public void onSuccess(T result) {
-            logger.atInfo().with(RESOURCE, resourceName)
-            .log("Update operation for %s completed", resourceName);
+            logger.atInfo()
+                .with(RESOURCE, resourceName)
+                .log("Update operation for %s completed", resourceName);
           }
 
           @Override
           public void onFailure(Throwable t) {
-            logger.atWarning().withCause(t).with(RESOURCE, resourceName)
-            .log("Update operation for %s failed", resourceName);
+            logger.atWarning()
+                .withCause(t)
+                .with(RESOURCE, resourceName)
+                .log("Update operation for %s failed", resourceName);
           }
         },
         MoreExecutors.directExecutor());
