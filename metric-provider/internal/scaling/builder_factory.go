@@ -190,6 +190,11 @@ func buildScaler(ctx context.Context, triggerType string, config *scalersconfig.
 	case "gcp-storage":
 		return scalers.NewGcsScaler(config)
 	case "github-runner":
+		// Preserve the upstream default trigger ID used in logs and Cloud Monitoring
+		// now that this scaler's Go type lives in a different package.
+		if config.TriggerName == "" {
+			config.TriggerName = "githubRunnerScaler"
+		}
 		return githubrunner.NewGitHubRunnerScaler(config)
 	case "graphite":
 		return scalers.NewGraphiteScaler(config)

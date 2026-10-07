@@ -30,6 +30,7 @@ func TestGitHubRunnerWorkflowDiscovery(t *testing.T) {
 	testCases := []struct {
 		name           string
 		workflowStatus string
+		triggerName    string
 		jobs           []githubJobFixture
 		apiStatus      int
 		wantDemand     float64
@@ -65,7 +66,8 @@ func TestGitHubRunnerWorkflowDiscovery(t *testing.T) {
 		},
 		{
 			name: "in-progress workflow still counts running production", workflowStatus: "in_progress",
-			jobs: []githubJobFixture{{Status: "in_progress", Labels: []string{"SELF-HOSTED"}}}, wantDemand: 1,
+			triggerName: "production-runner",
+			jobs:        []githubJobFixture{{Status: "in_progress", Labels: []string{"SELF-HOSTED"}}}, wantDemand: 1,
 		},
 		{
 			name: "completed workflow releases demand", workflowStatus: "completed",
@@ -125,6 +127,7 @@ func TestGitHubRunnerWorkflowDiscovery(t *testing.T) {
 				Spec: kedav1alpha1.ScaledObjectSpec{
 					ScaleTargetRef: &kedav1alpha1.ScaleTarget{Name: "github-runner"},
 					Triggers: []kedav1alpha1.ScaleTriggers{{
+						Name:              testCase.triggerName,
 						Type:              "github-runner",
 						AuthenticationRef: &kedav1alpha1.AuthenticationRef{Name: "github-auth"},
 						Metadata: map[string]string{
@@ -148,6 +151,11 @@ func TestGitHubRunnerWorkflowDiscovery(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Len(t, state.MetricAndTargetValues, 1)
+			expectedTriggerName := testCase.triggerName
+			if expectedTriggerName == "" {
+				expectedTriggerName = "githubRunnerScaler"
+			}
+			assert.Equal(t, expectedTriggerName, state.MetricAndTargetValues[0].TriggerName)
 			assert.Equal(t, testCase.wantDemand, state.MetricAndTargetValues[0].MetricValue)
 			assert.Equal(t, testCase.wantDemand > 0, state.IsActive)
 		})

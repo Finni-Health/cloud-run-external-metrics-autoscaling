@@ -17,6 +17,8 @@ for `pending` and retaining those runs in `stripDeadRuns`. The job filter still
 counts only `queued` or `in_progress` jobs with matching runner labels. Pending
 jobs, completed jobs, and unmatched labels do not themselves create demand.
 There is one extra workflow-list API request per configured repository per poll.
+The builder preserves KEDA's default trigger ID (`githubRunnerScaler`) for
+existing log and Cloud Monitoring labels; explicit trigger names still win.
 
 When updating KEDA, compare this file with the corresponding upstream scaler.
 Remove the local implementation once upstream supports this discovery behavior.
