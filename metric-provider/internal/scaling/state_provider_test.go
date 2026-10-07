@@ -21,6 +21,8 @@ import (
 
 	"crema/metric-provider/internal/logging"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	kedav1alpha1 "github.com/kedacore/keda/v2/apis/keda/v1alpha1"
 	"github.com/kedacore/keda/v2/pkg/scalers/scalersconfig"
 	"github.com/kedacore/keda/v2/pkg/scaling/cache"
@@ -151,7 +153,7 @@ func TestStateProvider_GetScaledObjectState(t *testing.T) {
 				{
 					TriggerName: "trigger1",
 					TriggerType: "type1",
-					MetricValue: float64(metric1.Value.Value()),
+					MetricValue: 0, // Inactive scalers must not request capacity.
 					TargetValue: v2.MetricTarget{
 						Type:         v2.AverageValueMetricType,
 						AverageValue: resource.NewQuantity(10, resource.DecimalSI),
@@ -189,7 +191,7 @@ func TestStateProvider_GetScaledObjectState(t *testing.T) {
 				{
 					TriggerName: "trigger1",
 					TriggerType: "type1",
-					MetricValue: float64(metric1.Value.Value()),
+					MetricValue: 0, // Inactive scalers must not request capacity.
 					TargetValue: v2.MetricTarget{
 						Type:         v2.AverageValueMetricType,
 						AverageValue: resource.NewQuantity(10, resource.DecimalSI),
@@ -249,7 +251,7 @@ func TestStateProvider_GetScaledObjectState(t *testing.T) {
 				{
 					TriggerName: "trigger1",
 					TriggerType: "type1",
-					MetricValue: float64(metric1.Value.Value()),
+					MetricValue: 0, // Inactive scalers must not request capacity.
 					TargetValue: v2.MetricTarget{
 						Type:         v2.AverageValueMetricType,
 						AverageValue: resource.NewQuantity(10, resource.DecimalSI),
@@ -258,7 +260,7 @@ func TestStateProvider_GetScaledObjectState(t *testing.T) {
 				{
 					TriggerName: "trigger2",
 					TriggerType: "type2",
-					MetricValue: float64(metric2.Value.Value()),
+					MetricValue: 0,
 					TargetValue: v2.MetricTarget{
 						Type:         v2.AverageValueMetricType,
 						AverageValue: resource.NewQuantity(10, resource.DecimalSI),
@@ -291,7 +293,17 @@ func TestStateProvider_GetScaledObjectState(t *testing.T) {
 			state, err := handler.GetScaledObjectState(context.Background(), scaledObject, tc.builders)
 
 			assert.Equal(t, tc.expectedIsActive, state.IsActive)
-			assert.ElementsMatch(t, tc.expectedMetricAndTarget, state.MetricAndTargetValues)
+			// Kubernetes quantities may store equal values at different decimal scales.
+			difference := cmp.Diff(tc.expectedMetricAndTarget, state.MetricAndTargetValues,
+				cmpopts.EquateEmpty(),
+				cmpopts.SortSlices(func(first, second MetricAndTargetValue) bool {
+					return first.TriggerName < second.TriggerName
+				}),
+				cmp.Comparer(func(first, second resource.Quantity) bool {
+					return first.Cmp(second) == 0
+				}),
+			)
+			assert.Empty(t, difference)
 
 			if tc.expectedError {
 				assert.Error(t, err)

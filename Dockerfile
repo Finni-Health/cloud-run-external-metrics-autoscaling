@@ -83,6 +83,7 @@ RUN protoc --proto_path=. \
 WORKDIR /app/metric-provider
 RUN go mod download
 RUN go mod tidy
+RUN go test ./...
 RUN CGO_ENABLED=0 GOOS=linux go build -o main -ldflags "-w -s" .
 RUN chmod +x main
 

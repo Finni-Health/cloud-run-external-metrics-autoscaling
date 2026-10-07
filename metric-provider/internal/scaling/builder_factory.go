@@ -18,6 +18,7 @@ import (
 	"context"
 	"crema/metric-provider/api"
 	"crema/metric-provider/internal/resolvers"
+	"crema/metric-provider/internal/scaling/githubrunner"
 
 	"fmt"
 	"time"
@@ -189,7 +190,7 @@ func buildScaler(ctx context.Context, triggerType string, config *scalersconfig.
 	case "gcp-storage":
 		return scalers.NewGcsScaler(config)
 	case "github-runner":
-		return scalers.NewGitHubRunnerScaler(config)
+		return githubrunner.NewGitHubRunnerScaler(config)
 	case "graphite":
 		return scalers.NewGraphiteScaler(config)
 	case "huawei-cloudeye":
