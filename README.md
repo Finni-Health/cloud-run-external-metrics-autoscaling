@@ -5,6 +5,23 @@
 
 The Cloud Run External Metrics Autoscaling (CREMA) project leverages [KEDA](https://github.com/kedacore/keda) to provide autoscaling for Cloud Run services and worker pools. This guide will walk you through the deployment of Cloud Run's pre-built CREMA container image.
 
+## Finni runner token issuance
+
+The optional runner token endpoints keep the GitHub App key on the autoscaler. Enable them with
+`RUNNER_TOKEN_AUDIENCE` (the Cloud Run service URL), `RUNNER_TOKEN_CALLER_SUBJECT` (the worker service
+account's immutable numeric ID), `RUNNER_TOKEN_REPOSITORY`, `RUNNER_TOKEN_KEY_SECRET`,
+`RUNNER_TOKEN_APP_ID`, and `RUNNER_TOKEN_INSTALLATION_ID`.
+
+Workers may POST an empty request to `/runner-tokens/registration` or `/runner-tokens/removal`.
+They obtain a Google ID token for the service audience and send it in both Authorization and
+X-Serverless-Authorization. Cloud Run IAM and the handler's signature, audience, issuer, verified
+identity, and subject checks authorize the request. The handler returns only a short-lived runner
+token and expiry. Repository, installation, and permissions are server configuration.
+
+Grant workers Cloud Run Invoker on this service. Remove their private-key binding and Secret
+Manager access, and verify they cannot modify the signer service or impersonate its account.
+Separate production deployment credentials may have broader privileges than the worker identity.
+
 # Architecture
 
 ![Architecture diagram](images/crema-architecture.png)

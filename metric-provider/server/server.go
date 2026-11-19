@@ -57,6 +57,7 @@ type Server struct {
 	scalerServerClient  ScalerServerClient
 	pollingInterval     *time.Duration // ptr to make it nil-able
 	logger              *logr.Logger
+	runnerTokens        *runnerTokenBroker
 }
 
 // Returns a Server. The zero value is not usable.
@@ -119,12 +120,17 @@ func New(logger *logr.Logger) (*Server, error) {
 	builderFactory := scaling.NewBuilderFactory(authResolver, defaultGlobalHttpTimeout, logger)
 	stateProvider := scaling.NewStateProvider(logger)
 	orchestrator := orchestrator.New(scalerServerClient, &cremaConfig, builderFactory, stateProvider, logger)
+	runnerTokens, err := newRunnerTokenBroker(ctx, secretManagerClient)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Server{
 		scalingOrchestrator: orchestrator,
 		scalerServerClient:  scalerServerClient,
 		pollingInterval:     pollingInterval,
 		logger:              logger,
+		runnerTokens:        runnerTokens,
 	}, nil
 }
 
@@ -162,6 +168,9 @@ func (s *Server) Start(ctx context.Context) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleRequest)
 	mux.HandleFunc("/healthz", s.handleHealthCheck)
+	if s.runnerTokens != nil {
+		mux.Handle("/runner-tokens/", s.runnerTokens)
+	}
 
 	srv := &http.Server{
 		Addr:    ":" + port,
